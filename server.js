@@ -39,9 +39,6 @@ function updateLightColor(mode, color) {
 }
 
 // WebSocket connection
-io = new Server({
-  pingTimeout: 60000
-});
 
 io.on('connection', (socket) => {
     console.log('New client connected');
