@@ -13,7 +13,9 @@ const io = socketIo(server, {
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
-  randomizationFactor: 0.5
+  randomizationFactor: 0.5,
+   pingTimeout: 60000, // 60 seconds
+    pingInterval: 25000 // 25 seconds
 });
 
 const port = process.env.PORT || 8080;
@@ -44,16 +46,11 @@ io.on('connection', (socket) => {
     console.log('New client connected');
     socket.emit('lightState', lightState);
 
-    socket.on("disconnect", (reason, details) => {
-  console.log("Disconnection reason:", reason);
-  console.log("Details:", details.message, details.description);
-});
-  socket.on("disconnect", () => {
-  Serial.println("Disconnected!");
-  // Attempt to reconnect
-  socketIO.begin(socketIOServer, socketIOPort, "/socket.io/?EIO=4");
-});
-  
+    socket.on('disconnect', (reason) => {
+        console.log('Client disconnected');
+        console.log('Disconnection reason:', reason);
+    });
+
     socket.on('changeColor', (color) => {
         updateLightColor('web', color);
     });
