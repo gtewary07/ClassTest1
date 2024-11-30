@@ -9,6 +9,10 @@ const { body, validationResult } = require('express-validator');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
