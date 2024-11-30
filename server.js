@@ -3,12 +3,14 @@ const http = require('http');
 const socketIo = require('socket.io');
 const bodyParser = require('body-parser');
 const path = require('path');
+const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
 const port = process.env.PORT || 8080;
+const weatherApiKey = 'YOUR_OPENWEATHERMAP_API_KEY';
 
 // Middleware
 app.use(bodyParser.json());
@@ -63,13 +65,19 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/api/weather', (req, res) => {
-    const weatherData = req.body;
-    lightState.weather = weatherData;
-    if (lightState.mode === 'weather') {
-        io.emit('lightState', lightState);
+app.get('/weather', async (req, res) => {
+    try {
+        const city = req.query.city || 'London';
+        const url = `http://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${weatherApiKey}`;
+        const response = await axios.get(url);
+        lightState.weather = response.data;
+        if (lightState.mode === 'weather') {
+            io.emit('lightState', lightState);
+        }
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch weather data' });
     }
-    res.sendStatus(200);
 });
 
 app.post('/api/youtube-pitch', (req, res) => {
