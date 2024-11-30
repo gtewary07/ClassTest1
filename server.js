@@ -39,14 +39,24 @@ function updateLightColor(mode, color) {
 }
 
 // WebSocket connection
+const io = new Server({
+  pingTimeout: 60000
+});
+
 io.on('connection', (socket) => {
     console.log('New client connected');
     socket.emit('lightState', lightState);
 
-    socket.on('disconnect', () => {
-        console.log('Client disconnected');
-    });
-
+    socket.on("disconnect", (reason, details) => {
+  console.log("Disconnection reason:", reason);
+  console.log("Details:", details.message, details.description);
+});
+  socket.on("disconnect", () => {
+  Serial.println("Disconnected!");
+  // Attempt to reconnect
+  socketIO.begin(socketIOServer, socketIOPort, "/socket.io/?EIO=4");
+});
+  
     socket.on('changeColor', (color) => {
         updateLightColor('web', color);
     });
