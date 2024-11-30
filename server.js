@@ -39,7 +39,7 @@ function updateLightColor(mode, color) {
 }
 
 // WebSocket connection
-const io = new Server({
+io = new Server({
   pingTimeout: 60000
 });
 
