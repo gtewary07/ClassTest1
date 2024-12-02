@@ -3,174 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Home Light Control</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.js"></script>
+    <title>Smart Light Controller</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root {
-            --primary-color: #4a90e2;
-            --secondary-color: #f5a623;
-            --background-color: #f0f4f8;
-            --text-color: #333;
-            --card-background: #ffffff;
-        }
-
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--background-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        .container {
+            font-family: Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #f0f0f0;
         }
-
-        h1 {
-            color: var(--primary-color);
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            background-color: var(--card-background);
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        .container {
+            background-color: white;
             padding: 20px;
-            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-
-        h2 {
-            color: var(--secondary-color);
-            margin-top: 0;
-        }
-
-        .control-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        input[type="color"], input[type="text"], input[type="number"], select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        button {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        button:hover {
-            background-color: #3a7bc8;
-        }
-
-        #colorPreview {
-            width: 50px;
-            height: 50px;
+        .color-preview {
+            width: 100px;
+            height: 100px;
+            border: 2px solid #ccc;
             border-radius: 50%;
-            margin: 10px auto;
-            border: 2px solid #ddd;
+            margin: 20px auto;
         }
-
-        .mode-indicator {
-            text-align: center;
-            font-size: 1.2em;
-            font-weight: bold;
+        .control-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .mode-buttons {
+            display: flex;
+            gap: 10px;
             margin-bottom: 20px;
         }
-
-        @media (max-width: 600px) {
-            .container {
-                padding: 10px;
-            }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        input {
+            margin: 10px 0;
+            padding: 5px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Smart Home Light Control</h1>
+        <h1>Smart Light Controller</h1>
         
-        <div class="mode-indicator">
-            Current Mode: <span id="currentMode">Web Control</span>
+        <div class="color-preview" id="colorPreview"></div>
+        
+        <div class="mode-buttons">
+            <button onclick="setMode('web')">Web Control</button>
+            <button onclick="setMode('weather')">Weather Mode</button>
+            <button onclick="setMode('youtube')">YouTube Mode</button>
         </div>
 
-        <div class="card">
+        <div class="control-section" id="webControl">
             <h2>Web Control</h2>
-            <div class="control-group">
-                <label for="colorPicker">Choose Color:</label>
-                <input type="color" id="colorPicker" value="#ffffff">
-            </div>
-            <div id="colorPreview"></div>
-            <button onclick="setWebColor()">Set Color</button>
+            <input type="color" id="colorPicker" onchange="updateColor(this.value)">
         </div>
 
-        <div class="card">
-            <h2>Weather-based Control</h2>
-            <div class="control-group">
-                <label for="cityInput">City:</label>
-                <input type="text" id="cityInput" placeholder="Enter city name">
-            </div>
-            <button onclick="setWeatherMode()">Set Weather Mode</button>
+        <div class="control-section" id="weatherControl">
+            <h2>Weather Control</h2>
+            <input type="text" id="cityInput" placeholder="Enter city name">
+            <button onclick="updateWeather()">Update Weather</button>
         </div>
 
-        <div class="card">
-            <h2>YouTube Pitch Control</h2>
-            <div class="control-group">
-                <label for="youtubeLink">YouTube Link:</label>
-                <input type="text" id="youtubeLink" placeholder="Enter YouTube video URL">
-            </div>
-            <button onclick="setYoutubeMode()">Set YouTube Mode</button>
+        <div class="control-section" id="youtubeControl">
+            <h2>YouTube Control</h2>
+            <input type="text" id="youtubeLink" placeholder="Enter YouTube URL">
+            <button onclick="startYoutubeAnalysis()">Start Analysis</button>
         </div>
     </div>
 
     <script>
         const socket = io();
-        const colorPicker = document.getElementById('colorPicker');
-        const colorPreview = document.getElementById('colorPreview');
-        const currentModeSpan = document.getElementById('currentMode');
+        let currentMode = 'web';
 
-        colorPicker.addEventListener('input', updateColorPreview);
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
 
-        function updateColorPreview() {
-            colorPreview.style.backgroundColor = colorPicker.value;
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+        });
+
+        socket.on('lightState', (state) => {
+            updateColorPreview(state.color);
+            currentMode = state.mode;
+            updateUIForMode(state.mode);
+        });
+
+        function setMode(mode) {
+            currentMode = mode;
+            socket.emit('changeMode', mode);
+            updateUIForMode(mode);
         }
 
-        function setWebColor() {
-            const color = colorPicker.value;
+        function updateColor(color) {
             const rgb = hexToRgb(color);
             socket.emit('changeColor', [rgb.r, rgb.g, rgb.b]);
-            socket.emit('changeMode', 'web');
-            currentModeSpan.textContent = 'Web Control';
         }
 
-        function setWeatherMode() {
+        function updateWeather() {
             const city = document.getElementById('cityInput').value;
-            socket.emit('changeMode', 'weather');
-            // You might want to send the city to the server here
-            currentModeSpan.textContent = 'Weather';
+            fetch(`/weather?city=${encodeURIComponent(city)}`)
+                .then(response => response.json())
+                .then(data => console.log('Weather updated:', data))
+                .catch(error => console.error('Error:', error));
         }
 
-        function setYoutubeMode() {
-            const youtubeLink = document.getElementById('youtubeLink').value;
-            socket.emit('changeMode', 'youtube');
-            // You might want to send the YouTube link to the server here
-            currentModeSpan.textContent = 'YouTube Pitch';
+        function startYoutubeAnalysis() {
+            const videoUrl = document.getElementById('youtubeLink').value;
+            socket.emit('youtubeLink', videoUrl);
+        }
+
+        function updateColorPreview(color) {
+            const preview = document.getElementById('colorPreview');
+            preview.style.backgroundColor = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+        }
+
+        function updateUIForMode(mode) {
+            document.querySelectorAll('.control-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            document.getElementById(`${mode}Control`).style.display = 'block';
         }
 
         function hexToRgb(hex) {
@@ -182,21 +147,8 @@
             } : null;
         }
 
-        socket.on('lightState', (state) => {
-            if (state.mode === 'web') {
-                const hexColor = rgbToHex(state.color[0], state.color[1], state.color[2]);
-                colorPicker.value = hexColor;
-                updateColorPreview();
-            }
-            currentModeSpan.textContent = state.mode.charAt(0).toUpperCase() + state.mode.slice(1);
-        });
-
-        function rgbToHex(r, g, b) {
-            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-        }
-
-        // Initial color preview update
-        updateColorPreview();
+        // Initial UI setup
+        updateUIForMode(currentMode);
     </script>
 </body>
 </html>
