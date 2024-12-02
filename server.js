@@ -10,9 +10,11 @@ const AudioMotionAnalyzer = require('audiomotion-analyzer');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: { origin: "*", methods: ["GET", "POST"], transports: ['websocket', 'polling'] },
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  connectTimeout: 45000,
+  allowEIO3: true
 });
 
 const port = process.env.PORT || 8080;
