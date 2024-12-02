@@ -48,7 +48,7 @@ function getColorForWeather(weatherCondition) {
 }
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'FIndex.html'));
 });
 
 app.post('/set-city', (req, res) => {
