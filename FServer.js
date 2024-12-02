@@ -77,7 +77,7 @@ setInterval(async () => {
     io.emit('updateColor', color);
     console.log(`Weather in ${CITY}: ${weatherCondition}, Color: ${color}`);
   }
-}, 5 * 60 * 1000);
+}, 1 * 60 * 1000);
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
