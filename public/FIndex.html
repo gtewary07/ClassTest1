@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Light Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            transition: background-color 0.5s ease;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        .control-section {
+            margin-bottom: 2rem;
+        }
+        input[type="color"] {
+            width: 100%;
+            height: 50px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        input[type="text"], button {
+            width: 100%;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #currentColor {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Smart Light Control</h1>
+        <div class="control-section">
+            <h2>Manual Color Control</h2>
+            <input type="color" id="colorPicker" value="#ff0000">
+        </div>
+        <div class="control-section">
+            <h2>Weather-based Light Control</h2>
+            <form id="cityForm">
+                <input type="text" id="city" name="city" placeholder="Enter your city" required>
+                <button type="submit">Set City</button>
+            </form>
+        </div>
+        <p>Current light color: <span id="currentColor">Not set</span></p>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const colorPicker = document.getElementById('colorPicker');
+        const cityForm = document.getElementById('cityForm');
+        const currentColorSpan = document.getElementById('currentColor');
+
+        colorPicker.addEventListener('change', (event) => {
+            const color = event.target.value;
+            socket.emit('colorChange', color);
+            updateColor(color);
+        });
+
+        cityForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const city = document.getElementById('city').value;
+            fetch('/set-city', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `city=${encodeURIComponent(city)}`
+            }).then(response => {
+                if (response.ok) {
+                    alert(`City set to ${city}`);
+                } else {
+                    alert('Failed to set city');
+                }
+            });
+        });
+
+        socket.on('updateColor', (color) => {
+            updateColor(color);
+        });
+
+        function updateColor(color) {
+            currentColorSpan.textContent = color;
+            document.body.style.backgroundColor = color;
+            colorPicker.value = color;
+        }
+    </script>
+</body>
+</html>
