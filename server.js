@@ -5,16 +5,12 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const axios = require('axios');
 const { body, validationResult } = require('express-validator');
+const YouTubeAudioAnalyzer = require('youtube-audio-analyzer');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: { origin: "*" },
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  randomizationFactor: 0.5,
+  cors: { origin: "*", methods: ["GET", "POST"] },
   pingTimeout: 60000,
   pingInterval: 25000
 });
@@ -22,29 +18,34 @@ const io = socketIo(server, {
 const port = process.env.PORT || 8080;
 const weatherApiKey = '7b15cc0615324f569a2211207242511';
 
+// Middleware setup
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Light state management
 let lightState = {
     mode: 'web',
     color: [255, 255, 255],
     weather: {},
-    youtubePitch: 0
+    youtubePitch: 0,
+    isActive: true
 };
 
+// Color update function
 function updateLightColor(mode, color) {
     lightState.mode = mode;
     lightState.color = color;
     io.emit('lightState', lightState);
 }
 
+// WebSocket connection handling
 io.on('connection', (socket) => {
-    console.log('New client connected');
+    console.log('Client connected:', socket.id);
     socket.emit('lightState', lightState);
 
     socket.on('disconnect', (reason) => {
-        console.log('Client disconnected:', reason);
+        console.log('Client disconnected:', socket.id, reason);
     });
 
     socket.on('changeColor', (color) => {
@@ -55,86 +56,102 @@ io.on('connection', (socket) => {
         lightState.mode = mode;
         io.emit('lightState', lightState);
     });
+
+    socket.on('youtubeLink', async (videoUrl) => {
+        try {
+            const analyzer = new YouTubeAudioAnalyzer(videoUrl);
+            analyzer.on('pitch', (pitch) => {
+                if (lightState.mode === 'youtube') {
+                    const color = getPitchColor(pitch);
+                    updateLightColor('youtube', color);
+                }
+            });
+            await analyzer.start();
+        } catch (error) {
+            console.error('YouTube analysis error:', error);
+            socket.emit('error', 'Failed to analyze YouTube video');
+        }
+    });
 });
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
+// Weather route
 app.get('/weather', async (req, res) => {
     try {
         const city = req.query.city || 'London';
         const url = `http://api.weatherapi.com/v1/current.json?key=${weatherApiKey}&q=${city}&aqi=no`;
         const response = await axios.get(url);
         lightState.weather = response.data;
+        
         if (lightState.mode === 'weather') {
             const color = getColorFromWeather(response.data);
             updateLightColor('weather', color);
         }
         res.json(response.data);
     } catch (error) {
-        console.error('Failed to fetch weather data:', error);
+        console.error('Weather API error:', error);
         res.status(500).json({ error: 'Failed to fetch weather data' });
     }
 });
 
+// Weather to color mapping
 function getColorFromWeather(weatherData) {
     const condition = weatherData.current.condition.code;
+    const temp = weatherData.current.temp_c;
+    
     const colorMap = {
-        1000: [255, 255, 0],   // Sunny - Yellow
-        1003: [135, 206, 235], // Partly cloudy - Light Blue
-        1006: [128, 128, 128], // Cloudy - Gray
-        1009: [169, 169, 169], // Overcast - Dark Gray
-        1030: [255, 255, 255], // Mist - White
-        1063: [0, 0, 255],     // Rain - Blue
-        1066: [255, 255, 255], // Snow - White
-        1087: [128, 0, 128],   // Thunder - Purple
+        1000: [255, 255, 0],   // Sunny
+        1003: [135, 206, 235], // Partly cloudy
+        1006: [128, 128, 128], // Cloudy
+        1009: [169, 169, 169], // Overcast
+        1030: [255, 255, 255], // Mist
+        1063: [0, 0, 255],     // Rain
+        1066: [255, 255, 255], // Snow
+        1087: [128, 0, 128],   // Thunder
     };
-    return colorMap[condition] || [255, 255, 255];
+
+    // Adjust color based on temperature
+    let color = colorMap[condition] || [255, 255, 255];
+    if (temp < 0) {
+        color = [0, 0, 255]; // Cold blue
+    } else if (temp > 30) {
+        color = [255, 0, 0]; // Hot red
+    }
+    
+    return color;
 }
 
-app.post('/api/youtube-pitch', [
-  body('pitch').isFloat({ min: 0, max: 20000 }),
-], (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-  const { pitch } = req.body;
-  lightState.youtubePitch = pitch;
-  if (lightState.mode === 'youtube') {
-    const color = getPitchColor(pitch);
-    updateLightColor('youtube', color);
-  }
-  res.sendStatus(200);
-});
-
+// Pitch to color conversion
 function getPitchColor(pitch) {
-  const hue = (pitch % 360) / 360;
-  const rgb = HSVtoRGB(hue, 1, 1);
-  return [rgb.r, rgb.g, rgb.b];
+    // Map pitch (20-20000 Hz) to hue (0-360)
+    const minPitch = 20;
+    const maxPitch = 20000;
+    const hue = ((pitch - minPitch) / (maxPitch - minPitch)) * 360;
+    return HSVtoRGB(hue / 360, 1, 1);
 }
 
+// HSV to RGB conversion
 function HSVtoRGB(h, s, v) {
-  let r, g, b, i, f, p, q, t;
-  i = Math.floor(h * 6);
-  f = h * 6 - i;
-  p = v * (1 - s);
-  q = v * (1 - f * s);
-  t = v * (1 - (1 - f) * s);
-  switch (i % 6) {
-    case 0: r = v, g = t, b = p; break;
-    case 1: r = q, g = v, b = p; break;
-    case 2: r = p, g = v, b = t; break;
-    case 3: r = p, g = q, b = v; break;
-    case 4: r = t, g = p, b = v; break;
-    case 5: r = v, g = p, b = q; break;
-  }
-  return {
-    r: Math.round(r * 255),
-    g: Math.round(g * 255),
-    b: Math.round(b * 255)
-  };
+    let r, g, b;
+    const i = Math.floor(h * 6);
+    const f = h * 6 - i;
+    const p = v * (1 - s);
+    const q = v * (1 - f * s);
+    const t = v * (1 - (1 - f) * s);
+
+    switch (i % 6) {
+        case 0: r = v, g = t, b = p; break;
+        case 1: r = q, g = v, b = p; break;
+        case 2: r = p, g = v, b = t; break;
+        case 3: r = p, g = q, b = v; break;
+        case 4: r = t, g = p, b = v; break;
+        case 5: r = v, g = p, b = q; break;
+    }
+
+    return [
+        Math.round(r * 255),
+        Math.round(g * 255),
+        Math.round(b * 255)
+    ];
 }
 
 server.listen(port, () => {
