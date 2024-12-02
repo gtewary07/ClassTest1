@@ -6,7 +6,7 @@ const path = require('path');
 // Create Express and Socket.IO instances
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
+const io = require("socket.io")(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"],
