@@ -6,9 +6,13 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 const io = require('socket.io')(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
+  allowEIO3: true,
   pingTimeout: 60000,
-  pingInterval: 25000,
-  allowEIO3: true
+  pingInterval: 25000
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
