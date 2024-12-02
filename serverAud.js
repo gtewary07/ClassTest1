@@ -88,9 +88,7 @@ async function processAudioFile(filePath, io) {
                 currentTime += 0.1; // Advance by 100ms
                 
                 setTimeout(processChunk, 100);
-            } catch (error) {
-        console.error('Error processing audio file:', error);
-    }
+            } 
             else {
                 // Cleanup
                 fs.unlink(filePath, (err) => {
