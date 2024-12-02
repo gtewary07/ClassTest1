@@ -9,32 +9,21 @@
             margin: 0 auto;
             padding: 20px;
         }
-        .input-group {
+        .upload-form {
             margin: 20px 0;
-        }
-        input[type="text"] {
-            width: 70%;
-            padding: 10px;
-            margin-right: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        #status {
-            margin-top: 20px;
-            padding: 10px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
         }
     </style>
 </head>
 <body>
     <h1>Audio Reactive LED Control</h1>
-    <div class="input-group">
-        <input type="text" id="youtubeUrl" placeholder="Enter YouTube URL">
-        <button onclick="processYouTube()">Start Light Show</button>
+    <div class="upload-form">
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+            <input type="file" name="audioFile" accept=".mp3" required>
+            <button type="submit">Upload and Process</button>
+        </form>
     </div>
     <div id="status"></div>
 
@@ -43,37 +32,12 @@
         const socket = io();
         const statusDiv = document.getElementById('status');
 
-        async function processYouTube() {
-            const url = document.getElementById('youtubeUrl').value;
-            try {
-                const response = await fetch('/process-youtube', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ youtubeUrl: url })
-                });
-                const data = await response.json();
-                if (data.status === 'success') {
-                    statusDiv.textContent = 'Processing audio...';
-                    statusDiv.style.color = 'green';
-                } else {
-                    throw new Error(data.error);
-                }
-            } catch (error) {
-                statusDiv.textContent = `Error: ${error.message}`;
-                statusDiv.style.color = 'red';
-            }
-        }
-
         socket.on('connect', () => {
             statusDiv.textContent = 'Connected to server';
-            statusDiv.style.color = 'green';
         });
 
-        socket.on('disconnect', () => {
-            statusDiv.textContent = 'Disconnected from server';
-            statusDiv.style.color = 'red';
+        socket.on('colorUpdate', (color) => {
+            statusDiv.textContent = `Current color: ${color}`;
         });
     </script>
 </body>
