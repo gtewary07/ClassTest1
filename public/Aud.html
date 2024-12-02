@@ -1,44 +1,74 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Audio Reactive LED Control</title>
+    <title>Audio Light Control</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .upload-form {
-            margin: 20px 0;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+        #visualizer {
+            width: 500px;
+            height: 200px;
+            border: 1px solid black;
         }
     </style>
 </head>
 <body>
-    <h1>Audio Reactive LED Control</h1>
-    <div class="upload-form">
-        <form action="/upload" method="POST" enctype="multipart/form-data">
-            <input type="file" name="audioFile" accept=".mp3" required>
-            <button type="submit">Upload and Process</button>
-        </form>
+    <div>
+        <input type="file" id="audioInput" accept="audio/*">
+        <button onclick="startAudio()">Start Audio Analysis</button>
     </div>
-    <div id="status"></div>
+    <canvas id="visualizer"></canvas>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const statusDiv = document.getElementById('status');
+        let audioContext;
+        let analyser;
+        const canvas = document.getElementById('visualizer');
+        const canvasCtx = canvas.getContext('2d');
 
-        socket.on('connect', () => {
-            statusDiv.textContent = 'Connected to server';
-        });
-
-        socket.on('colorUpdate', (color) => {
-            statusDiv.textContent = `Current color: ${color}`;
-        });
+        async function startAudio() {
+            const file = document.getElementById('audioInput').files[0];
+            const audio = new Audio(URL.createObjectURL(file));
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaElementSource(audio);
+            
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+            
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            audio.play();
+            
+            function analyze() {
+                requestAnimationFrame(analyze);
+                analyser.getByteFrequencyData(dataArray);
+                
+                const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                const intensity = average / 255 * 100;
+                
+                socket.emit('audioData', { intensity });
+                
+                // Visualize
+                canvasCtx.fillStyle = 'rgb(0, 0, 0)';
+                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+                
+                for(let i = 0; i < bufferLength; i++) {
+                    barHeight = dataArray[i] / 2;
+                    canvasCtx.fillStyle = `rgb(${barHeight + 100},50,50)`;
+                    canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    x += barWidth + 1;
+                }
+            }
+            
+            analyze();
+        }
     </script>
 </body>
 </html>
