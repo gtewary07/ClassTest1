@@ -9,50 +9,42 @@ const { body, validationResult } = require('express-validator');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  },
+  cors: { origin: "*" },
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   randomizationFactor: 0.5,
-   pingTimeout: 60000, // 60 seconds
-    pingInterval: 25000 // 25 seconds
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 const port = process.env.PORT || 8080;
 const weatherApiKey = '7b15cc0615324f569a2211207242511';
 
-// Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Store current light state
 let lightState = {
     mode: 'web',
-    color: [255, 255, 255], // Default white
+    color: [255, 255, 255],
     weather: {},
     youtubePitch: 0
 };
 
 function updateLightColor(mode, color) {
-  lightState.mode = mode;
-  lightState.color = color;
-  io.emit('lightState', lightState);
+    lightState.mode = mode;
+    lightState.color = color;
+    io.emit('lightState', lightState);
 }
-
-// WebSocket connection
 
 io.on('connection', (socket) => {
     console.log('New client connected');
     socket.emit('lightState', lightState);
 
     socket.on('disconnect', (reason) => {
-        console.log('Client disconnected');
-        console.log('Disconnection reason:', reason);
+        console.log('Client disconnected:', reason);
     });
 
     socket.on('changeColor', (color) => {
@@ -65,7 +57,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// Routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -89,7 +80,6 @@ app.get('/weather', async (req, res) => {
 
 function getColorFromWeather(weatherData) {
     const condition = weatherData.current.condition.code;
-    // Map weather condition codes to colors
     const colorMap = {
         1000: [255, 255, 0],   // Sunny - Yellow
         1003: [135, 206, 235], // Partly cloudy - Light Blue
@@ -99,9 +89,8 @@ function getColorFromWeather(weatherData) {
         1063: [0, 0, 255],     // Rain - Blue
         1066: [255, 255, 255], // Snow - White
         1087: [128, 0, 128],   // Thunder - Purple
-        // Add more mappings as needed
     };
-    return colorMap[condition] || [255, 255, 255]; // Default to white if condition not found
+    return colorMap[condition] || [255, 255, 255];
 }
 
 app.post('/api/youtube-pitch', [
@@ -121,7 +110,6 @@ app.post('/api/youtube-pitch', [
 });
 
 function getPitchColor(pitch) {
-  // Map pitch to color (example implementation)
   const hue = (pitch % 360) / 360;
   const rgb = HSVtoRGB(hue, 1, 1);
   return [rgb.r, rgb.g, rgb.b];
@@ -149,7 +137,6 @@ function HSVtoRGB(h, s, v) {
   };
 }
 
-// Start server
 server.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
