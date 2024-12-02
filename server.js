@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const axios = require('axios');
 const { body, validationResult } = require('express-validator');
-const YouTubeAudioAnalyzer = require('youtube-audio-analyzer');
+const AudioMotionAnalyzer = require('audiomotion-analyzer');
 
 const app = express();
 const server = http.createServer(app);
@@ -28,7 +28,7 @@ let lightState = {
     mode: 'web',
     color: [255, 255, 255],
     weather: {},
-    youtubePitch: 0,
+    audioEnergy: 0,
     isActive: true
 };
 
@@ -57,19 +57,15 @@ io.on('connection', (socket) => {
         io.emit('lightState', lightState);
     });
 
-    socket.on('youtubeLink', async (videoUrl) => {
-        try {
-            const analyzer = new YouTubeAudioAnalyzer(videoUrl);
-            analyzer.on('pitch', (pitch) => {
-                if (lightState.mode === 'youtube') {
-                    const color = getPitchColor(pitch);
-                    updateLightColor('youtube', color);
-                }
-            });
-            await analyzer.start();
-        } catch (error) {
-            console.error('YouTube analysis error:', error);
-            socket.emit('error', 'Failed to analyze YouTube video');
+    socket.on('audioData', (audioData) => {
+        if (lightState.mode === 'audio') {
+            // Calculate the average energy across all frequency bands
+            const energy = calculateAudioEnergy(audioData);
+            lightState.audioEnergy = energy;
+            
+            // Convert audio energy to color
+            const color = getAudioColor(energy);
+            updateLightColor('audio', color);
         }
     });
 });
@@ -92,6 +88,22 @@ app.get('/weather', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch weather data' });
     }
 });
+
+// Audio energy calculation
+function calculateAudioEnergy(audioData) {
+    // Calculate the root mean square (RMS) of the audio data
+    const sum = audioData.reduce((acc, val) => acc + (val * val), 0);
+    return Math.sqrt(sum / audioData.length);
+}
+
+// Audio energy to color conversion
+function getAudioColor(energy) {
+    // Map energy (0-1) to hue (0-360)
+    // Lower energy = cooler colors (blue/green)
+    // Higher energy = warmer colors (yellow/red)
+    const hue = (1 - energy) * 240; // 240 = blue, 0 = red
+    return HSVtoRGB(hue / 360, 1, 1);
+}
 
 // Weather to color mapping
 function getColorFromWeather(weatherData) {
@@ -118,15 +130,6 @@ function getColorFromWeather(weatherData) {
     }
     
     return color;
-}
-
-// Pitch to color conversion
-function getPitchColor(pitch) {
-    // Map pitch (20-20000 Hz) to hue (0-360)
-    const minPitch = 20;
-    const maxPitch = 20000;
-    const hue = ((pitch - minPitch) / (maxPitch - minPitch)) * 360;
-    return HSVtoRGB(hue / 360, 1, 1);
 }
 
 // HSV to RGB conversion
