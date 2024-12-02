@@ -12,7 +12,8 @@ const io = require('socket.io')(server, {
     },
     allowEIO3: true,
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
+    maxHttpBufferSize: 1e8
 });
 
 // Serve static files
