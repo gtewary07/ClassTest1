@@ -6,7 +6,7 @@ const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
-const io = require('socket.io')(server, {
+const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
@@ -20,7 +20,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 
 const API_KEY = '7b15cc0615324f569a2211207242511';
-let CITY = 'London'; // Default city
+let CITY = 'London';
+let currentMode = 'manual';
 
 async function getWeatherData(city) {
   try {
@@ -48,11 +49,13 @@ function getColorForWeather(weatherCondition) {
 }
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.post('/set-city', (req, res) => {
-  CITY = req.body.city;
+  if (currentMode === 'weather') {
+    CITY = req.body.city;
+  }
   res.redirect('/');
 });
 
@@ -60,8 +63,17 @@ io.on('connection', (socket) => {
   console.log('A user connected');
 
   socket.on('colorChange', (color) => {
-    console.log('Color changed to:', color);
-    io.emit('updateColor', color);
+    if (currentMode === 'manual') {
+      console.log('Color changed to:', color);
+      io.emit('updateColor', color);
+    }
+  });
+
+  socket.on('setCity', (city) => {
+    if (currentMode === 'weather') {
+      CITY = city;
+      console.log('City set to:', city);
+    }
   });
 
   socket.on('disconnect', () => {
@@ -69,15 +81,16 @@ io.on('connection', (socket) => {
   });
 });
 
-// Update weather every 5 minutes
 setInterval(async () => {
-  const weatherCondition = await getWeatherData(CITY);
-  if (weatherCondition) {
-    const color = getColorForWeather(weatherCondition);
-    io.emit('updateColor', color);
-    console.log(`Weather in ${CITY}: ${weatherCondition}, Color: ${color}`);
+  if (currentMode === 'weather') {
+    const weatherCondition = await getWeatherData(CITY);
+    if (weatherCondition) {
+      const color = getColorForWeather(weatherCondition);
+      io.emit('updateColor', color);
+      console.log(`Weather in ${CITY}: ${weatherCondition}, Color: ${color}`);
+    }
   }
-}, 1 * 60 * 1000);
+}, 5 * 60 * 1000);
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
