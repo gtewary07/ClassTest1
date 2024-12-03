@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -22,6 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 const API_KEY = '7b15cc0615324f569a2211207242511';
 let CITY = 'London';
 let currentMode = 'manual';
+let weatherUpdateInterval;
 
 async function getWeatherData(city) {
   try {
@@ -48,19 +50,32 @@ function getColorForWeather(weatherCondition) {
   }
 }
 
+async function updateWeatherColor() {
+  if (currentMode === 'weather') {
+    const weatherCondition = await getWeatherData(CITY);
+    if (weatherCondition) {
+      const color = getColorForWeather(weatherCondition);
+      io.emit('updateColor', color);
+      io.emit('weatherUpdate', { city: CITY, condition: weatherCondition });
+      console.log(`Weather in ${CITY}: ${weatherCondition}, Color: ${color}`);
+    }
+  }
+}
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/set-city', (req, res) => {
-  if (currentMode === 'weather') {
-    CITY = req.body.city;
-  }
-  res.redirect('/');
-});
-
 io.on('connection', (socket) => {
   console.log('A user connected');
+
+  socket.on('setMode', async (mode) => {
+    currentMode = mode;
+    console.log('Mode changed to:', mode);
+    if (mode === 'weather') {
+      await updateWeatherColor();
+    }
+  });
 
   socket.on('colorChange', (color) => {
     if (currentMode === 'manual') {
@@ -69,11 +84,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('setCity', (city) => {
-    if (currentMode === 'weather') {
-      CITY = city;
-      console.log('City set to:', city);
-    }
+  socket.on('setCity', async (city) => {
+    CITY = city;
+    console.log('City set to:', city);
+    await updateWeatherColor();
   });
 
   socket.on('disconnect', () => {
@@ -81,16 +95,8 @@ io.on('connection', (socket) => {
   });
 });
 
-setInterval(async () => {
-  if (currentMode === 'weather') {
-    const weatherCondition = await getWeatherData(CITY);
-    if (weatherCondition) {
-      const color = getColorForWeather(weatherCondition);
-      io.emit('updateColor', color);
-      console.log(`Weather in ${CITY}: ${weatherCondition}, Color: ${color}`);
-    }
-  }
-}, 5 * 60 * 1000);
+// Update weather every 5 minutes
+setInterval(updateWeatherColor, 0.5 * 60 * 1000);
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
