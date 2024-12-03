@@ -25,7 +25,7 @@
             max-width: 600px;
             width: 100%;
         }
-        h1 {
+        h1, h2 {
             color: #2c3e50;
             margin-bottom: 1.5rem;
         }
@@ -78,7 +78,7 @@
             font-size: 16px;
             box-sizing: border-box;
         }
-        .submit-button {
+        .button {
             background-color: #2ecc71;
             color: white;
             border: none;
@@ -88,9 +88,16 @@
             font-size: 16px;
             transition: background-color 0.3s ease;
             width: 100%;
+            margin-bottom: 10px;
         }
-        .submit-button:hover {
+        .button:hover {
             background-color: #27ae60;
+        }
+        .button.pause {
+            background-color: #e74c3c;
+        }
+        .button.pause:hover {
+            background-color: #c0392b;
         }
         .status-section {
             margin-top: 1.5rem;
@@ -106,15 +113,15 @@
             height: 150px;
             border-radius: 8px;
             background-color: #000;
-            margin-top: 1rem;
+            margin: 1rem 0;
         }
         .audio-controls {
-            margin-top: 1rem;
-        }
-        #audioInput {
-            margin-bottom: 1rem;
+            display: flex;
+            gap: 10px;
+            margin: 1rem 0;
         }
         .file-input-wrapper {
+            position: relative;
             margin-bottom: 1rem;
         }
         .file-input-wrapper input[type="file"] {
@@ -128,6 +135,15 @@
             cursor: pointer;
             display: inline-block;
             margin-bottom: 10px;
+            transition: background-color 0.3s ease;
+        }
+        .file-input-label:hover {
+            background-color: #2980b9;
+        }
+        #fileName {
+            margin-top: 5px;
+            color: #666;
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -149,7 +165,7 @@
         <div id="weatherControl" class="control-section">
             <h2>Weather-based Control</h2>
             <input type="text" id="cityInput" class="city-input" placeholder="Enter your city">
-            <button id="setCityButton" class="submit-button">Set City</button>
+            <button id="setCityButton" class="button">Set City</button>
         </div>
 
         <div id="audioControl" class="control-section">
@@ -159,8 +175,12 @@
                     Choose Audio File
                     <input type="file" id="audioInput" accept="audio/*">
                 </label>
+                <div id="fileName"></div>
             </div>
-            <button id="startAudioButton" class="submit-button">Start Audio Analysis</button>
+            <div class="audio-controls">
+                <button id="startAudioButton" class="button">Start Audio</button>
+                <button id="pauseAudioButton" class="button pause" style="display: none;">Pause</button>
+            </div>
             <canvas id="visualizer"></canvas>
         </div>
 
@@ -176,6 +196,10 @@
         let currentMode = 'manual';
         let audioContext;
         let analyser;
+        let audioSource;
+        let audioElement;
+        let isPlaying = false;
+        let animationFrame;
 
         // DOM Elements
         const modeButtons = document.querySelectorAll('.mode-button');
@@ -188,6 +212,13 @@
         const canvas = document.getElementById('visualizer');
         const canvasCtx = canvas.getContext('2d');
         const startAudioButton = document.getElementById('startAudioButton');
+        const pauseAudioButton = document.getElementById('pauseAudioButton');
+        const audioInput = document.getElementById('audioInput');
+        const fileNameDisplay = document.getElementById('fileName');
+
+        // Canvas setup
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
 
         // Mode Selection
         modeButtons.forEach(button => {
@@ -195,7 +226,6 @@
                 const mode = button.dataset.mode;
                 setMode(mode);
                 
-                // Update UI
                 modeButtons.forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
                 
@@ -207,8 +237,138 @@
                 if (mode !== 'weather') {
                     weatherStatus.textContent = '';
                 }
+                if (mode !== 'audio' && isPlaying) {
+                    stopAudio();
+                }
             });
         });
+
+        // Audio file selection
+        audioInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                fileNameDisplay.textContent = file.name;
+                startAudioButton.disabled = false;
+                if (isPlaying) {
+                    stopAudio();
+                }
+            }
+        });
+
+        // Start/Pause Audio
+        startAudioButton.addEventListener('click', () => {
+            if (!isPlaying) {
+                startAudio();
+            }
+        });
+
+        pauseAudioButton.addEventListener('click', () => {
+            if (isPlaying) {
+                if (audioElement.paused) {
+                    audioElement.play();
+                    pauseAudioButton.textContent = 'Pause';
+                } else {
+                    audioElement.pause();
+                    pauseAudioButton.textContent = 'Resume';
+                }
+            }
+        });
+
+        async function startAudio() {
+            const file = audioInput.files[0];
+            if (!file) {
+                alert('Please select an audio file first');
+                return;
+            }
+
+            if (audioContext) {
+                await audioContext.close();
+            }
+
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            
+            audioElement = new Audio(URL.createObjectURL(file));
+            audioSource = audioContext.createMediaElementSource(audioElement);
+            
+            audioSource.connect(analyser);
+            analyser.connect(audioContext.destination);
+            
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            audioElement.play();
+            isPlaying = true;
+            startAudioButton.style.display = 'none';
+            pauseAudioButton.style.display = 'block';
+
+            function analyze() {
+                if (currentMode === 'audio' && isPlaying && !audioElement.paused) {
+                    animationFrame = requestAnimationFrame(analyze);
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                    const intensity = average / 255 * 100;
+                    
+                    // Enhanced color mapping
+                    let color;
+                    if (intensity < 20) {
+                        const value = (intensity / 20) * 255;
+                        color = `#${Math.floor(value).toString(16).padStart(2, '0')}00FF`;
+                    } else if (intensity < 40) {
+                        const value = ((intensity - 20) / 20) * 255;
+                        color = `#00${Math.floor(value).toString(16).padStart(2, '0')}FF`;
+                    } else if (intensity < 60) {
+                        const value = 255 - ((intensity - 40) / 20) * 255;
+                        color = `#00FF${Math.floor(value).toString(16).padStart(2, '0')}`;
+                    } else if (intensity < 80) {
+                        const value = ((intensity - 60) / 20) * 255;
+                        color = `#${Math.floor(value).toString(16).padStart(2, '0')}FF00`;
+                    } else {
+                        const value = 255 - ((intensity - 80) / 20) * 255;
+                        color = `#FF${Math.floor(value).toString(16).padStart(2, '0')}00`;
+                    }
+                    
+                    socket.emit('audioData', { intensity, color });
+                    
+                    // Visualizer
+                    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    let x = 0;
+                    
+                    for(let i = 0; i < bufferLength; i++) {
+                        barHeight = dataArray[i] * 1.5;
+                        const gradient = canvasCtx.createLinearGradient(x, canvas.height - barHeight, x, canvas.height);
+                        gradient.addColorStop(0, color);
+                        gradient.addColorStop(1, '#000000');
+                        
+                        canvasCtx.fillStyle = gradient;
+                        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                        x += barWidth + 1;
+                    }
+                }
+            }
+            
+            analyze();
+        }
+
+        function stopAudio() {
+            if (audioElement) {
+                audioElement.pause();
+                audioElement.currentTime = 0;
+            }
+            if (audioContext) {
+                cancelAnimationFrame(animationFrame);
+            }
+            isPlaying = false;
+            startAudioButton.style.display = 'block';
+            pauseAudioButton.style.display = 'none';
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+        }
 
         function setMode(mode) {
             currentMode = mode;
@@ -232,61 +392,6 @@
             }
         });
 
-        // Audio Control
-        startAudioButton.addEventListener('click', startAudio);
-
-        async function startAudio() {
-            const file = document.getElementById('audioInput').files[0];
-            if (!file) {
-                alert('Please select an audio file first');
-                return;
-            }
-
-            const audio = new Audio(URL.createObjectURL(file));
-            
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            const source = audioContext.createMediaElementSource(audio);
-            
-            source.connect(analyser);
-            analyser.connect(audioContext.destination);
-            
-            analyser.fftSize = 256;
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            
-            audio.play();
-            
-            function analyze() {
-                if (currentMode === 'audio') {
-                    requestAnimationFrame(analyze);
-                    analyser.getByteFrequencyData(dataArray);
-                    
-                    const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-                    const intensity = average / 255 * 100;
-                    
-                    socket.emit('audioData', { intensity });
-                    
-                    // Visualize
-                    canvasCtx.fillStyle = 'rgb(0, 0, 0)';
-                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    const barWidth = (canvas.width / bufferLength) * 2.5;
-                    let barHeight;
-                    let x = 0;
-                    
-                    for(let i = 0; i < bufferLength; i++) {
-                        barHeight = dataArray[i] / 2;
-                        canvasCtx.fillStyle = `rgb(${barHeight + 100},50,50)`;
-                        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                        x += barWidth + 1;
-                    }
-                }
-            }
-            
-            analyze();
-        }
-
         // Socket Events
         socket.on('updateColor', (color) => {
             currentColorSpan.textContent = color;
@@ -304,6 +409,12 @@
 
         // Initialize
         setMode('manual');
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        });
     </script>
 </body>
 </html>
