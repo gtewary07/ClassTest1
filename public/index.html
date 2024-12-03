@@ -3,152 +3,307 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Light Controller</title>
-    <script src="/socket.io/socket.io.js"></script>
+    <title>Smart Light Control</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
             background-color: #f0f0f0;
+            transition: background-color 0.5s ease;
+            padding: 20px;
         }
         .container {
             background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
         }
-        .color-preview {
-            width: 100px;
-            height: 100px;
-            border: 2px solid #ccc;
-            border-radius: 50%;
-            margin: 20px auto;
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+        }
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        .mode-button {
+            padding: 10px 20px;
+            border: 2px solid #3498db;
+            border-radius: 25px;
+            background: none;
+            color: #3498db;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            min-width: 120px;
+        }
+        .mode-button.active {
+            background: #3498db;
+            color: white;
         }
         .control-section {
-            margin: 20px 0;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: none;
         }
-        .mode-buttons {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+        .control-section.active {
+            display: block;
         }
-        button {
-            padding: 10px 20px;
+        input[type="color"] {
+            width: 100%;
+            height: 60px;
             border: none;
-            border-radius: 5px;
-            background-color: #007bff;
-            color: white;
+            border-radius: 8px;
             cursor: pointer;
+            margin-bottom: 1rem;
         }
-        button:hover {
-            background-color: #0056b3;
+        .city-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 16px;
+            box-sizing: border-box;
         }
-        input {
-            margin: 10px 0;
-            padding: 5px;
+        .submit-button {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            width: 100%;
+        }
+        .submit-button:hover {
+            background-color: #27ae60;
+        }
+        .status-section {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-top: 1px solid #eee;
+        }
+        #currentColor, #weatherStatus {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        #visualizer {
+            width: 100%;
+            height: 150px;
+            border-radius: 8px;
+            background-color: #000;
+            margin-top: 1rem;
+        }
+        .audio-controls {
+            margin-top: 1rem;
+        }
+        #audioInput {
+            margin-bottom: 1rem;
+        }
+        .file-input-wrapper {
+            margin-bottom: 1rem;
+        }
+        .file-input-wrapper input[type="file"] {
+            display: none;
+        }
+        .file-input-label {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-block;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Smart Light Controller</h1>
+        <h1>Smart Light Control</h1>
         
-        <div class="color-preview" id="colorPreview"></div>
-        
-        <div class="mode-buttons">
-            <button onclick="setMode('web')">Web Control</button>
-            <button onclick="setMode('weather')">Weather Mode</button>
-            <button onclick="setMode('youtube')">YouTube Mode</button>
+        <div class="mode-selector">
+            <button class="mode-button active" data-mode="manual">Manual Control</button>
+            <button class="mode-button" data-mode="weather">Weather Control</button>
+            <button class="mode-button" data-mode="audio">Audio Control</button>
         </div>
 
-        <div class="control-section" id="webControl">
-            <h2>Web Control</h2>
-            <input type="color" id="colorPicker" onchange="updateColor(this.value)">
+        <div id="manualControl" class="control-section active">
+            <h2>Manual Color Control</h2>
+            <input type="color" id="colorPicker" value="#ff0000">
         </div>
 
-        <div class="control-section" id="weatherControl">
-            <h2>Weather Control</h2>
-            <input type="text" id="cityInput" placeholder="Enter city name">
-            <button onclick="updateWeather()">Update Weather</button>
+        <div id="weatherControl" class="control-section">
+            <h2>Weather-based Control</h2>
+            <input type="text" id="cityInput" class="city-input" placeholder="Enter your city">
+            <button id="setCityButton" class="submit-button">Set City</button>
         </div>
 
-        <div class="control-section" id="youtubeControl">
-            <h2>YouTube Control</h2>
-            <input type="text" id="youtubeLink" placeholder="Enter YouTube URL">
-            <button onclick="startYoutubeAnalysis()">Start Analysis</button>
+        <div id="audioControl" class="control-section">
+            <h2>Audio Visualization</h2>
+            <div class="file-input-wrapper">
+                <label class="file-input-label">
+                    Choose Audio File
+                    <input type="file" id="audioInput" accept="audio/*">
+                </label>
+            </div>
+            <button id="startAudioButton" class="submit-button">Start Audio Analysis</button>
+            <canvas id="visualizer"></canvas>
+        </div>
+
+        <div class="status-section">
+            <p>Current light color: <span id="currentColor">Not set</span></p>
+            <p id="weatherStatus"></p>
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let currentMode = 'web';
+        let currentMode = 'manual';
+        let audioContext;
+        let analyser;
 
-        socket.on('connect', () => {
-            console.log('Connected to server');
-        });
+        // DOM Elements
+        const modeButtons = document.querySelectorAll('.mode-button');
+        const controlSections = document.querySelectorAll('.control-section');
+        const colorPicker = document.getElementById('colorPicker');
+        const cityInput = document.getElementById('cityInput');
+        const setCityButton = document.getElementById('setCityButton');
+        const currentColorSpan = document.getElementById('currentColor');
+        const weatherStatus = document.getElementById('weatherStatus');
+        const canvas = document.getElementById('visualizer');
+        const canvasCtx = canvas.getContext('2d');
+        const startAudioButton = document.getElementById('startAudioButton');
 
-        socket.on('disconnect', () => {
-            console.log('Disconnected from server');
-        });
+        // Mode Selection
+        modeButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const mode = button.dataset.mode;
+                setMode(mode);
+                
+                // Update UI
+                modeButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                controlSections.forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.getElementById(`${mode}Control`).classList.add('active');
 
-        socket.on('lightState', (state) => {
-            updateColorPreview(state.color);
-            currentMode = state.mode;
-            updateUIForMode(state.mode);
+                if (mode !== 'weather') {
+                    weatherStatus.textContent = '';
+                }
+            });
         });
 
         function setMode(mode) {
             currentMode = mode;
-            socket.emit('changeMode', mode);
-            updateUIForMode(mode);
+            socket.emit('setMode', mode);
         }
 
-        function updateColor(color) {
-            const rgb = hexToRgb(color);
-            socket.emit('changeColor', [rgb.r, rgb.g, rgb.b]);
+        // Color Picker
+        colorPicker.addEventListener('change', (event) => {
+            if (currentMode === 'manual') {
+                const color = event.target.value;
+                socket.emit('colorChange', color);
+            }
+        });
+
+        // City Setting
+        setCityButton.addEventListener('click', () => {
+            const city = cityInput.value.trim();
+            if (city) {
+                socket.emit('setCity', city);
+                cityInput.value = '';
+            }
+        });
+
+        // Audio Control
+        startAudioButton.addEventListener('click', startAudio);
+
+        async function startAudio() {
+            const file = document.getElementById('audioInput').files[0];
+            if (!file) {
+                alert('Please select an audio file first');
+                return;
+            }
+
+            const audio = new Audio(URL.createObjectURL(file));
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaElementSource(audio);
+            
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+            
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            audio.play();
+            
+            function analyze() {
+                if (currentMode === 'audio') {
+                    requestAnimationFrame(analyze);
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                    const intensity = average / 255 * 100;
+                    
+                    socket.emit('audioData', { intensity });
+                    
+                    // Visualize
+                    canvasCtx.fillStyle = 'rgb(0, 0, 0)';
+                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    let x = 0;
+                    
+                    for(let i = 0; i < bufferLength; i++) {
+                        barHeight = dataArray[i] / 2;
+                        canvasCtx.fillStyle = `rgb(${barHeight + 100},50,50)`;
+                        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                        x += barWidth + 1;
+                    }
+                }
+            }
+            
+            analyze();
         }
 
-        function updateWeather() {
-            const city = document.getElementById('cityInput').value;
-            fetch(`/weather?city=${encodeURIComponent(city)}`)
-                .then(response => response.json())
-                .then(data => console.log('Weather updated:', data))
-                .catch(error => console.error('Error:', error));
-        }
+        // Socket Events
+        socket.on('updateColor', (color) => {
+            currentColorSpan.textContent = color;
+            document.body.style.backgroundColor = color;
+            if (currentMode === 'manual') {
+                colorPicker.value = color;
+            }
+        });
 
-        function startYoutubeAnalysis() {
-            const videoUrl = document.getElementById('youtubeLink').value;
-            socket.emit('youtubeLink', videoUrl);
-        }
+        socket.on('weatherUpdate', (data) => {
+            if (currentMode === 'weather') {
+                weatherStatus.textContent = `Current weather in ${data.city}: ${data.condition}`;
+            }
+        });
 
-        function updateColorPreview(color) {
-            const preview = document.getElementById('colorPreview');
-            preview.style.backgroundColor = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-        }
-
-        function updateUIForMode(mode) {
-            document.querySelectorAll('.control-section').forEach(section => {
-                section.style.display = 'none';
-            });
-            document.getElementById(`${mode}Control`).style.display = 'block';
-        }
-
-        function hexToRgb(hex) {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? {
-                r: parseInt(result[1], 16),
-                g: parseInt(result[2], 16),
-                b: parseInt(result[3], 16)
-            } : null;
-        }
-
-        // Initial UI setup
-        updateUIForMode(currentMode);
+        // Initialize
+        setMode('manual');
     </script>
 </body>
 </html>
