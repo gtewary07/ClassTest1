@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -21,6 +20,50 @@ const io = socketIo(server, {
 const API_KEY = '7b15cc0615324f569a2211207242511';
 let CITY = 'London';
 let currentMode = 'manual';
+
+function map(value, in_min, in_max, out_min, out_max) {
+    return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(x => {
+        const hex = x.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+}
+
+function calculateAudioColor(intensity) {
+    let r, g, b;
+    
+    if (intensity < 20) {
+        // Deep Purple
+        r = Math.floor(map(intensity, 0, 20, 128, 255));
+        g = 0;
+        b = 255;
+    } else if (intensity < 40) {
+        // Bright Blue
+        r = 0;
+        g = Math.floor(map(intensity, 20, 40, 0, 128));
+        b = 255;
+    } else if (intensity < 60) {
+        // Bright Green
+        r = 0;
+        g = 255;
+        b = Math.floor(map(intensity, 40, 60, 255, 0));
+    } else if (intensity < 80) {
+        // Orange
+        r = 255;
+        g = Math.floor(map(intensity, 60, 80, 128, 255));
+        b = 0;
+    } else {
+        // Red
+        r = 255;
+        g = 0;
+        b = Math.floor(map(intensity, 80, 100, 128, 0));
+    }
+    
+    return rgbToHex(r, g, b);
+}
 
 async function getWeatherData(city) {
     try {
@@ -45,35 +88,6 @@ function getColorForWeather(weatherCondition) {
         case 'snowy': return '#FFFFFF';
         default: return '#00FF00';
     }
-}
-
-function calculateColor(intensity) {
-    intensity = Math.min(Math.max(intensity, 0), 100);
-    let r, g, b;
-    
-    if (intensity < 20) {
-        r = Math.floor((intensity / 20) * 128);
-        g = 0;
-        b = 255;
-    } else if (intensity < 40) {
-        r = 0;
-        g = Math.floor(((intensity - 20) / 20) * 255);
-        b = 255;
-    } else if (intensity < 60) {
-        r = 0;
-        g = 255;
-        b = Math.floor(255 - ((intensity - 40) / 20) * 255);
-    } else if (intensity < 80) {
-        r = Math.floor(((intensity - 60) / 20) * 255);
-        g = 255;
-        b = 0;
-    } else {
-        r = 255;
-        g = Math.floor(255 - ((intensity - 80) / 20) * 255);
-        b = 0;
-    }
-    
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 async function updateWeatherColor() {
@@ -118,8 +132,21 @@ io.on('connection', (socket) => {
     socket.on('audioData', (data) => {
         if (currentMode === 'audio') {
             try {
-                const color = data.color || calculateColor(data.intensity);
-                io.emit('updateColor', color);
+                // Handle both RGB and intensity-based color calculations
+                let color;
+                if (data.color && data.color.startsWith('rgb')) {
+                    // Parse RGB color string
+                    const rgb = data.color.match(/\d+/g).map(Number);
+                    color = rgbToHex(rgb[0], rgb[1], rgb[2]);
+                } else if (data.intensity !== undefined) {
+                    color = calculateAudioColor(data.intensity);
+                } else if (data.color) {
+                    color = data.color; // Use provided hex color
+                }
+
+                if (color) {
+                    io.emit('updateColor', color);
+                }
             } catch (error) {
                 console.error('Error processing audio data:', error);
             }
@@ -131,9 +158,23 @@ io.on('connection', (socket) => {
     });
 });
 
+// Update weather every 5 minutes
 setInterval(updateWeatherColor, 5 * 60 * 1000);
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+});
+
+// Error handling
+process.on('unhandledRejection', (error) => {
+    console.error('Unhandled Rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+});
+
+server.on('error', (error) => {
+    console.error('Server Error:', error);
 });
