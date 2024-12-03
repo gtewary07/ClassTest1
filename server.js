@@ -18,7 +18,7 @@ const io = socketIo(server, {
 });
 
 const API_KEY = '7b15cc0615324f569a2211207242511';
-let CITY = 'London';
+let CITY = 'Tempe';
 let currentMode = 'manual';
 
 function map(value, in_min, in_max, out_min, out_max) {
