@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -46,6 +47,35 @@ function getColorForWeather(weatherCondition) {
     }
 }
 
+function calculateColor(intensity) {
+    intensity = Math.min(Math.max(intensity, 0), 100);
+    let r, g, b;
+    
+    if (intensity < 20) {
+        r = Math.floor((intensity / 20) * 128);
+        g = 0;
+        b = 255;
+    } else if (intensity < 40) {
+        r = 0;
+        g = Math.floor(((intensity - 20) / 20) * 255);
+        b = 255;
+    } else if (intensity < 60) {
+        r = 0;
+        g = 255;
+        b = Math.floor(255 - ((intensity - 40) / 20) * 255);
+    } else if (intensity < 80) {
+        r = Math.floor(((intensity - 60) / 20) * 255);
+        g = 255;
+        b = 0;
+    } else {
+        r = 255;
+        g = Math.floor(255 - ((intensity - 80) / 20) * 255);
+        b = 0;
+    }
+    
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
 async function updateWeatherColor() {
     if (currentMode === 'weather') {
         const weatherCondition = await getWeatherData(CITY);
@@ -64,6 +94,7 @@ io.on('connection', (socket) => {
 
     socket.on('setMode', async (mode) => {
         currentMode = mode;
+        console.log('Mode changed to:', mode);
         if (mode === 'weather') {
             await updateWeatherColor();
         }
@@ -71,6 +102,7 @@ io.on('connection', (socket) => {
 
     socket.on('colorChange', (color) => {
         if (currentMode === 'manual') {
+            console.log('Manual color change:', color);
             io.emit('updateColor', color);
         }
     });
@@ -78,6 +110,7 @@ io.on('connection', (socket) => {
     socket.on('setCity', async (city) => {
         if (currentMode === 'weather') {
             CITY = city;
+            console.log('City set to:', city);
             await updateWeatherColor();
         }
     });
@@ -85,11 +118,7 @@ io.on('connection', (socket) => {
     socket.on('audioData', (data) => {
         if (currentMode === 'audio') {
             try {
-                const intensity = Math.min(Math.max(data.intensity, 0), 100);
-                const r = Math.floor((intensity / 100) * 255);
-                const g = Math.floor((intensity / 100) * 255);
-                const b = 255 - Math.floor((intensity / 100) * 255);
-                const color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                const color = data.color || calculateColor(data.intensity);
                 io.emit('updateColor', color);
             } catch (error) {
                 console.error('Error processing audio data:', error);
