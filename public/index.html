@@ -319,7 +319,7 @@
             pauseAudioButton.style.display = 'block';
 
             function analyze() {
-                if (currentMode === 'audio' && isPlaying && !audioElement.paused) {
+                if (currentMode === 'audio' && isPlaying ) {
                     animationFrame = requestAnimationFrame(analyze);
                     analyser.getByteFrequencyData(dataArray);
                     
@@ -327,30 +327,26 @@
                     const intensity = average / 255 * 100;
                     
                     // Enhanced color mapping
-                    let color;
-                    if (intensity < 20) {
-                        const value = (intensity / 20) * 255;
-                        color = `#${Math.floor(value).toString(16).padStart(2, '0')}00FF`;
-                    } else if (intensity < 40) {
-                        const value = ((intensity - 20) / 20) * 255;
-                        color = `#00${Math.floor(value).toString(16).padStart(2, '0')}FF`;
-                    } else if (intensity < 60) {
-                        const value = 255 - ((intensity - 40) / 20) * 255;
-                        color = `#00FF${Math.floor(value).toString(16).padStart(2, '0')}`;
-                    } else if (intensity < 80) {
-                        const value = ((intensity - 60) / 20) * 255;
-                        color = `#${Math.floor(value).toString(16).padStart(2, '0')}FF00`;
-                    } else {
-                        const value = 255 - ((intensity - 80) / 20) * 255;
-                        color = `#FF${Math.floor(value).toString(16).padStart(2, '0')}00`;
-                    }
+                    // More dramatic color changes
+                        let color;
+                if (intensity < 20) {
+                    color = `#FF0000`;
+                } else if (intensity < 40) {
+                    color = `#00FF00`;
+                } else if (intensity < 60) {
+                color = `#0000FF`;
+                } else if (intensity < 80) {
+                    color = `#FFFF00`;
+                } else {
+                    color = `#FF00FF`;
+                }
                     
                     socket.emit('audioData', { intensity, color });
                     
                     // Visualizer
                     canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
                     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-                    
+                    updateVisualizer(dataArray, color);
                     const barWidth = (canvas.width / bufferLength) * 2.5;
                     let barHeight;
                     let x = 0;
@@ -371,6 +367,20 @@
             analyze();
         }
 
+                // Add resume functionality
+        pauseAudioButton.addEventListener('click', () => {
+            if (isPlaying) {
+                if (audioElement.paused) {
+                    audioElement.play();
+                    analyze(); // Restart analysis
+                    pauseAudioButton.textContent = 'Pause';
+                } else {
+                    audioElement.pause();
+                    pauseAudioButton.textContent = 'Resume';
+                }
+                }
+                });
+            
         function stopAudio() {
             if (audioElement) {
                 audioElement.pause();
