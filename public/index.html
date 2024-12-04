@@ -251,13 +251,7 @@
                 }
             });
         });
-        const setColorButton = document.getElementById('setColorButton');
-            setColorButton.addEventListener('click', () => {
-            if (currentMode === 'manual') {
-            const color = colorPicker.value;
-            socket.emit('colorChange', color);
-        }
-        });
+
         // Audio file selection
         audioInput.addEventListener('change', function() {
             const file = this.files[0];
@@ -278,18 +272,16 @@
         });
 
         pauseAudioButton.addEventListener('click', () => {
-    if (isPlaying) {
-        if (audioElement.paused) {
-            audioElement.play();
-            pauseAudioButton.textContent = 'Pause';
-            analyze(); // Restart the analysis
-        } else {
-            audioElement.pause();
-            pauseAudioButton.textContent = 'Resume';
-            cancelAnimationFrame(animationFrame);
-        }
-    }
-});
+            if (isPlaying) {
+                if (audioElement.paused) {
+                    audioElement.play();
+                    pauseAudioButton.textContent = 'Pause';
+                } else {
+                    audioElement.pause();
+                    pauseAudioButton.textContent = 'Resume';
+                }
+            }
+        });
 
         async function startAudio() {
             const file = audioInput.files[0];
@@ -320,74 +312,59 @@
             startAudioButton.style.display = 'none';
             pauseAudioButton.style.display = 'block';
 
-           // Update the analyze function
             function analyze() {
-                if (currentMode === 'audio' && isPlaying) {
+                if (currentMode === 'audio' && isPlaying && !audioElement.paused) {
                     animationFrame = requestAnimationFrame(analyze);
+                    analyser.getByteFrequencyData(dataArray);
                     
-                    if (!audioElement.paused) {
-                        analyser.getByteFrequencyData(dataArray);
-                        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-                        const intensity = average / 255 * 100;
+                    const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                    const intensity = average / 255 * 100;
+                    
+                    // Enhanced color mapping
+                    let color;
+                    if (intensity < 20) {
+                        const value = (intensity / 20) * 255;
+                        color = `#${Math.floor(value).toString(16).padStart(2, '0')}00FF`;
+                    } else if (intensity < 40) {
+                        const value = ((intensity - 20) / 20) * 255;
+                        color = `#00${Math.floor(value).toString(16).padStart(2, '0')}FF`;
+                    } else if (intensity < 60) {
+                        const value = 255 - ((intensity - 40) / 20) * 255;
+                        color = `#00FF${Math.floor(value).toString(16).padStart(2, '0')}`;
+                    } else if (intensity < 80) {
+                        const value = ((intensity - 60) / 20) * 255;
+                        color = `#${Math.floor(value).toString(16).padStart(2, '0')}FF00`;
+                    } else {
+                        const value = 255 - ((intensity - 80) / 20) * 255;
+                        color = `#FF${Math.floor(value).toString(16).padStart(2, '0')}00`;
+                    }
+                    
+                    socket.emit('audioData', { intensity, color });
+                    
+                    // Visualizer
+                    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    let x = 0;
+                    
+                    for(let i = 0; i < bufferLength; i++) {
+                        barHeight = dataArray[i] * 1.5;
+                        const gradient = canvasCtx.createLinearGradient(x, canvas.height - barHeight, x, canvas.height);
+                        gradient.addColorStop(0, color);
+                        gradient.addColorStop(1, '#000000');
                         
-                        // Enhanced color mapping with more distinct colors
-                        let color;
-                        if (intensity < 20) {
-                            color = '#FF00FF'; // Magenta
-                        } else if (intensity < 40) {
-                            color = '#0000FF'; // Blue
-                        } else if (intensity < 60) {
-                            color = '#00FF00'; // Green
-                        } else if (intensity < 80) {
-                            color = '#FFFF00'; // Yellow
-                        } else {
-                            color = '#FF0000'; // Red
-                        }
-                        
-                        socket.emit('audioData', { intensity, color });
-                        
-                        // Clear canvas and draw new visualization
-                        canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-                        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-                        
-                        const barWidth = (canvas.width / bufferLength) * 2.5;
-                        let x = 0;
-                        
-                        for(let i = 0; i < bufferLength; i++) {
-                            const barHeight = dataArray[i] * 1.5;
-                            const gradient = canvasCtx.createLinearGradient(x, canvas.height - barHeight, x, canvas.height);
-                            gradient.addColorStop(0, color);
-                            gradient.addColorStop(1, '#000');
-                            canvasCtx.fillStyle = gradient;
-                            canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                            x += barWidth + 1;
-                        }
+                        canvasCtx.fillStyle = gradient;
+                        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                        x += barWidth + 1;
                     }
                 }
             }
             
-            // Update the pause button handler
-            pauseAudioButton.addEventListener('click', () => {
-                if (isPlaying) {
-                    if (audioElement.paused) {
-                        audioElement.play();
-                        pauseAudioButton.textContent = 'Pause';
-                        requestAnimationFrame(analyze);
-                    } else {
-                        audioElement.pause();
-                        pauseAudioButton.textContent = 'Resume';
-                        cancelAnimationFrame(animationFrame);
-                    }
-                }
-            });
-            
-            // Update the weather status display
-            socket.on('weatherUpdate', (data) => {
-                if (currentMode === 'weather') {
-                    weatherStatus.textContent = `Current weather in ${data.city}: ${data.condition} (${data.timeOfDay})`;
-                }
-            });
-            
+            analyze();
+        }
+
         function stopAudio() {
             if (audioElement) {
                 audioElement.pause();
@@ -433,6 +410,11 @@
             }
         });
 
+        socket.on('weatherUpdate', (data) => {
+            if (currentMode === 'weather') {
+                weatherStatus.textContent = `Current weather in ${data.city}: ${data.condition}`;
+            }
+        });
 
         // Initialize
         setMode('manual');
