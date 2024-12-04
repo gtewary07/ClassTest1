@@ -112,8 +112,9 @@
             width: 100%;
             height: 150px;
             border-radius: 8px;
-            background-color: #000;
+            background-color: rgba(0, 0, 0, 0.9);
             margin: 1rem 0;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
         }
         .audio-controls {
             display: flex;
@@ -145,38 +146,26 @@
             color: #666;
             font-size: 0.9em;
         }
-        #visualizer {
-            width: 100%;
-        height: 150px;
-        border-radius: 8px;
-        background-color: rgba(0, 0, 0, 0.9);
-        margin: 1rem 0;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Smart Light Control</h1>
-        
         <div class="mode-selector">
             <button class="mode-button active" data-mode="manual">Manual Control</button>
             <button class="mode-button" data-mode="weather">Weather Control</button>
             <button class="mode-button" data-mode="audio">Audio Control</button>
         </div>
-
         <div id="manualControl" class="control-section active">
             <h2>Manual Color Control</h2>
             <input type="color" id="colorPicker" value="#ff0000">
-            <button id="setColorButton" class="button">Set Color</button>        
+            <button id="setColorButton" class="button">Set Color</button>
         </div>
-
         <div id="weatherControl" class="control-section">
             <h2>Weather-based Control</h2>
             <input type="text" id="cityInput" class="city-input" placeholder="Enter your city">
             <button id="setCityButton" class="button">Set City</button>
         </div>
-
         <div id="audioControl" class="control-section">
             <h2>Audio Visualization</h2>
             <div class="file-input-wrapper">
@@ -192,13 +181,11 @@
             </div>
             <canvas id="visualizer"></canvas>
         </div>
-
         <div class="status-section">
             <p>Current light color: <span id="currentColor">Not set</span></p>
             <p id="weatherStatus"></p>
         </div>
     </div>
-
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
@@ -234,15 +221,12 @@
             button.addEventListener('click', () => {
                 const mode = button.dataset.mode;
                 setMode(mode);
-                
                 modeButtons.forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
-                
                 controlSections.forEach(section => {
                     section.classList.remove('active');
                 });
                 document.getElementById(`${mode}Control`).classList.add('active');
-
                 if (mode !== 'weather') {
                     weatherStatus.textContent = '';
                 }
@@ -276,9 +260,11 @@
                 if (audioElement.paused) {
                     audioElement.play();
                     pauseAudioButton.textContent = 'Pause';
+                    requestAnimationFrame(analyze);
                 } else {
                     audioElement.pause();
                     pauseAudioButton.textContent = 'Resume';
+                    cancelAnimationFrame(animationFrame);
                 }
             }
         });
@@ -289,80 +275,69 @@
                 alert('Please select an audio file first');
                 return;
             }
-
             if (audioContext) {
                 await audioContext.close();
             }
-
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioContext.createAnalyser();
-            
             audioElement = new Audio(URL.createObjectURL(file));
             audioSource = audioContext.createMediaElementSource(audioElement);
-            
             audioSource.connect(analyser);
             analyser.connect(audioContext.destination);
-            
             analyser.fftSize = 256;
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            
             audioElement.play();
             isPlaying = true;
             startAudioButton.style.display = 'none';
             pauseAudioButton.style.display = 'block';
+            analyze();
+        }
 
-            function analyze() {
-                if (currentMode === 'audio' && isPlaying && !audioElement.paused) {
-                    animationFrame = requestAnimationFrame(analyze);
-                    analyser.getByteFrequencyData(dataArray);
-                    
-                    const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-                    const intensity = average / 255 * 100;
-                    
-                    // Enhanced color mapping
-                    let color;
-                    if (intensity < 20) {
-                        const value = (intensity / 20) * 255;
-                        color = `#${Math.floor(value).toString(16).padStart(2, '0')}00FF`;
-                    } else if (intensity < 40) {
-                        const value = ((intensity - 20) / 20) * 255;
-                        color = `#00${Math.floor(value).toString(16).padStart(2, '0')}FF`;
-                    } else if (intensity < 60) {
-                        const value = 255 - ((intensity - 40) / 20) * 255;
-                        color = `#00FF${Math.floor(value).toString(16).padStart(2, '0')}`;
-                    } else if (intensity < 80) {
-                        const value = ((intensity - 60) / 20) * 255;
-                        color = `#${Math.floor(value).toString(16).padStart(2, '0')}FF00`;
-                    } else {
-                        const value = 255 - ((intensity - 80) / 20) * 255;
-                        color = `#FF${Math.floor(value).toString(16).padStart(2, '0')}00`;
-                    }
-                    
-                    socket.emit('audioData', { intensity, color });
-                    
-                    // Visualizer
-                    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    const barWidth = (canvas.width / bufferLength) * 2.5;
-                    let barHeight;
-                    let x = 0;
-                    
-                    for(let i = 0; i < bufferLength; i++) {
-                        barHeight = dataArray[i] * 1.5;
-                        const gradient = canvasCtx.createLinearGradient(x, canvas.height - barHeight, x, canvas.height);
-                        gradient.addColorStop(0, color);
-                        gradient.addColorStop(1, '#000000');
-                        
-                        canvasCtx.fillStyle = gradient;
-                        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                        x += barWidth + 1;
-                    }
+        function analyze() {
+            if (currentMode === 'audio' && isPlaying && !audioElement.paused) {
+                animationFrame = requestAnimationFrame(analyze);
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                const intensity = average / 255 * 100;
+
+                // Enhanced color mapping
+                let color;
+                if (intensity < 20) {
+                    const value = (intensity / 20) * 255;
+                    color = `#${Math.floor(value).toString(16).padStart(2, '0')}00FF`;
+                } else if (intensity < 40) {
+                    const value = ((intensity - 20) / 20) * 255;
+                    color = `#00${Math.floor(value).toString(16).padStart(2, '0')}FF`;
+                } else if (intensity < 60) {
+                    const value = 255 - ((intensity - 40) / 20) * 255;
+                    color = `#00FF${Math.floor(value).toString(16).padStart(2, '0')}`;
+                } else if (intensity < 80) {
+                    const value = ((intensity - 60) / 20) * 255;
+                    color = `#${Math.floor(value).toString(16).padStart(2, '0')}FF00`;
+                } else {
+                    const value = 255 - ((intensity - 80) / 20) * 255;
+                    color = `#FF${Math.floor(value).toString(16).padStart(2, '0')}00`;
+                }
+
+                socket.emit('audioData', { intensity, color });
+
+                // Visualizer
+                canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+                for(let i = 0; i < bufferLength; i++) {
+                    barHeight = dataArray[i] * 1.5;
+                    const gradient = canvasCtx.createLinearGradient(x, canvas.height - barHeight, x, canvas.height);
+                    gradient.addColorStop(0, color);
+                    gradient.addColorStop(1, '#000000');
+                    canvasCtx.fillStyle = gradient;
+                    canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    x += barWidth + 1;
                 }
             }
-            
-            analyze();
         }
 
         function stopAudio() {
@@ -423,6 +398,13 @@
         window.addEventListener('resize', () => {
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
+        });
+
+        // Error handling for audio context creation
+        document.body.addEventListener('click', () => {
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
         });
     </script>
 </body>
