@@ -126,15 +126,6 @@ function getWeatherTimeBasedColor(weatherCondition, hour) {
     return baseColors[weatherType][timeOfDay];
 }
 
-// Update the socket event handler
-socket.on('weatherUpdate', (data) => {
-    if (currentMode === 'weather') {
-        const hour = new Date().getHours();
-        const color = getWeatherTimeBasedColor(data.condition, hour);
-        socket.emit('colorChange', color);
-        weatherStatus.textContent = `Current weather in ${data.city}: ${data.condition} (${getTimeOfDay(hour)})`;
-    }
-});
 
 function getTimeOfDay(hour) {
     if (hour >= 5 && hour < 12) return 'Morning';
