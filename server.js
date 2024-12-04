@@ -153,9 +153,15 @@ async function updateWeatherColor() {
     if (currentMode === 'weather') {
         const weatherCondition = await getWeatherData(CITY);
         if (weatherCondition) {
-            const color = getColorForWeather(weatherCondition);
+            const hour = new Date().getHours();
+            const timeOfDay = getTimeOfDay(hour);
+            const color = getWeatherTimeBasedColor(weatherCondition, hour);
             io.emit('updateColor', color);
-            io.emit('weatherUpdate', { city: CITY, condition: weatherCondition });
+            io.emit('weatherUpdate', { 
+                city: CITY, 
+                condition: weatherCondition,
+                timeOfDay: timeOfDay
+            });
         }
     }
 }
