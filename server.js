@@ -17,14 +17,6 @@ const io = socketIo(server, {
     maxHttpBufferSize: 1e8
 });
 
-const setColorButton = document.getElementById('setColorButton');
-setColorButton.addEventListener('click', () => {
-    if (currentMode === 'manual') {
-        const color = colorPicker.value;
-        socket.emit('colorChange', color);
-    }
-});
-
 const API_KEY = '7b15cc0615324f569a2211207242511';
 let CITY = 'Tempe';
 let currentMode = 'manual';
@@ -161,20 +153,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    pauseAudioButton.addEventListener('click', () => {
-    if (isPlaying) {
-        if (audioElement.paused) {
-            audioElement.play();
-            pauseAudioButton.textContent = 'Pause';
-            analyze(); // Restart the analysis loop
-        } else {
-            audioElement.pause();
-            pauseAudioButton.textContent = 'Resume';
-            cancelAnimationFrame(animationFrame);
-        }
-    }
-});
-    
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
     });
