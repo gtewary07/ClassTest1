@@ -278,16 +278,18 @@
         });
 
         pauseAudioButton.addEventListener('click', () => {
-            if (isPlaying) {
-                if (audioElement.paused) {
-                    audioElement.play();
-                    pauseAudioButton.textContent = 'Pause';
-                } else {
-                    audioElement.pause();
-                    pauseAudioButton.textContent = 'Resume';
-                }
-            }
-        });
+    if (isPlaying) {
+        if (audioElement.paused) {
+            audioElement.play();
+            pauseAudioButton.textContent = 'Pause';
+            analyze(); // Restart the analysis
+        } else {
+            audioElement.pause();
+            pauseAudioButton.textContent = 'Resume';
+            cancelAnimationFrame(animationFrame);
+        }
+    }
+});
 
         async function startAudio() {
             const file = audioInput.files[0];
@@ -319,7 +321,7 @@
             pauseAudioButton.style.display = 'block';
 
             function analyze() {
-                if (currentMode === 'audio' && isPlaying ) {
+                if (currentMode === 'audio' && isPlaying  && !audioElement.paused) {
                     animationFrame = requestAnimationFrame(analyze);
                     analyser.getByteFrequencyData(dataArray);
                     
